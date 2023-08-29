@@ -1,0 +1,33 @@
+This was to manage my workflow, a small fraction of the changes I implemented are on here
+It was just to remember stuf between periods really 
+
+DONE
+. Create a mechanic to only allow jumping when on ground
+. Create opposite of is_grounded for a mechanic that stop player sinking into floor
+. Keep player from leaving the scene (Use Bool)
+. Stop player sinking through floor on higher plaforms
+. Add collision manager for edgy side collisions
+. Create Trees
+. Add graphics to player
+. Use the perfect player pixel ratio to crop images and then create an animation engine to play images accordingly
+. Clean code/Optimize (Its getting kinda messy)
+. Redo collision system
+. Add according idle to when both keys are being pressed
+. Simplify animation code
+. Add jump animation
+. Add UI for gems (Gems: 000)
+. Add level UI
+. Create Enemy
+. Create Enemy AI
+. Adjust enemy images
+. Adjust dimension on enemy
+. Massive Code clean simplify everything!!!!!
+. Create settings page
+. Add menu buttons
+. Add an option to toggle Trees
+
+TODO
+. Getting one gem doesnt kill all them
+. Fix on restart the lvl 2 gem not showing up
+. Fix multiple enemies speed, its varied fsr
+. Add cherry's
