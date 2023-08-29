@@ -502,7 +502,7 @@ class GameState():
 
             # Init player and gem if the player is starting the game and not just falling down from level2
             if not delevel:
-                player_group.add(Player(screen_width/2,450))
+                player_group.add(Player(24,504))
                 gem_group.add(Gem(BLOCK_DIMENSIONS/2,BLOCK_DIMENSIONS+(BLOCK_DIMENSIONS/2)))
 
             # Level1 has init
@@ -1597,7 +1597,6 @@ class UI(pygame.sprite.Sprite):
                 button.image = pygame.transform.scale(self.button_normal_arr[9],(144,23))
                 button.rect.x = 658
                 if button.rect.collidepoint(mouse_pos):
-                    print("pluh")
                     button.image = pygame.transform.scale(self.button_selected_arr[9],(144*1.2,23*1.2))
                     button.rect.x = 643
 
