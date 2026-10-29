@@ -1,6 +1,12 @@
 # This file is where I store all my tilemaps
 # Feel free to tweak them slightly to see how they work :)
 
+# Each map is a grid of 13 rows x 17 columns, one number per 48px block.
+# NOTE: the maps are stored UPSIDE-DOWN. Row 0 (the first row in each list) is the
+# BOTTOM of the screen (the floor) and the last row is the top, so mentally flip
+# the map vertically to see how it looks in-game.
+# Keep the size at 13x17 or the level won't fit the screen.
+#
 # Tile map code:
 # -1 : Transparent/Air
 #  0 : Sky grass
@@ -10,7 +16,7 @@
 #  4 : Snowy sky grass
 #  5 : Snowy stone
 
-# Level 1
+# Level 1 (grass world, 1 enemy)
 tile_map_1 =  [ [ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
                 [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                 [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
@@ -25,7 +31,7 @@ tile_map_1 =  [ [ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
                 [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
                 [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]]
 
-# Level 2
+# Level 2 (grass world, 3 enemies)
 tile_map_2 =  [ [-1,-1, 0, 0, 0, 0, 0,-1,-1,-1, 0, 0, 0, 0, 0,-1,-1],
                 [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 3, 3,-1,-1,-1],
                 [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
@@ -40,7 +46,7 @@ tile_map_2 =  [ [-1,-1, 0, 0, 0, 0, 0,-1,-1,-1, 0, 0, 0, 0, 0,-1,-1],
                 [-1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
                 [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]]
 
-# Level 3
+# Level 3 (snowy world, 4 enemies and a portal)
 tile_map_3 =  [ [-1,-1,-1, 5,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
                 [-1,-1,-1,-1,-1,-1,-1, 3,-1,-1,-1,-1, 4, 4, 4, 4, 4],
                 [-1,-1,-1,-1,-1,-1,-1, 5,-1,-1,-1,-1,-1,-1,-1,-1,-1],
