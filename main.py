@@ -1,3 +1,25 @@
+"""
+Foxfire Odyssey
+
+A small 2D platformer built with pygame (rendering/input) and pymunk (physics).
+Climb off the top of each screen to reach the next level, grab the gem in each
+level to unlock the exit, and avoid the opossums.
+
+Controls:
+    Left / Right arrows  - move
+    Space / Up arrow     - jump (only while standing on the ground)
+    Mouse                - menu buttons
+
+Overview of how this file is laid out:
+    1. Constants and global game variables
+    2. Helper functions (terrain creation, music and SFX handlers)
+    3. GameState  - one method per screen (menus, death screen, levels 1-3)
+    4. Sprite classes - Terrain, Gem, Player, Enemy, Portal, UI_Digits, UI
+    5. Setup (pygame, pymunk, assets, sprite groups) and the main loop
+
+Tile maps for each level live in mapdata.py.
+"""
+
 # Import for modules I use
 import pygame
 import pymunk
@@ -9,27 +31,27 @@ from mapdata import tile_map_1, tile_map_2, tile_map_3
 
 # Constants (for quality of life)
 # Block
-NATIVE_BLOCK_DIMENSIONS = 16
-BLOCK_DIMENSIONS = 48
+NATIVE_BLOCK_DIMENSIONS = 16  # Size of a block in the source art (pixels)
+BLOCK_DIMENSIONS = 48         # Size a block is drawn at on screen (pixels, 3x the art)
 
-# Screen
+# Screen (in blocks, so the window is 17*48 = 816 wide and 13*48 = 624 tall)
 SCREEN_BLOCK_WIDTH = 17
 SCREEN_BLOCK_HEIGHT = 13
 
 # Collisions
-SIDE_COLLISION_TOLERANCE = 44
+SIDE_COLLISION_TOLERANCE = 44  # How far (pixels) vertically a block can be from the player's top and still count as a wall
 
 # Player
-PLAYER_DIMENSION = 44
-SPEED_MULT = 3
-JUMP_MULT = 550
+PLAYER_DIMENSION = 44  # Player sprite and hitbox size (pixels)
+SPEED_MULT = 3        # Pixels moved per frame while a direction key is held
+JUMP_MULT = 550       # Upwards impulse applied to the physics body on jump
 # ------------------------------
 
 # Game Variables ---------------
-# Timer
+# Timer (seconds since launch, incremented by 1/60 each frame in the main loop)
 timer = 0
 
-# Inputs
+# Inputs (set from the event handlers, read by the Player)
 l_pressed = False
 r_pressed = False
 mouse_down = False
@@ -37,17 +59,18 @@ space_pressed = False
 is_grounded = False
 
 # Counters
-level = 1
+level = 1           # Level the player is currently on (1-3)
 gem_count = 0
 current_sprite = 0
 
-# Check for unlocks
+# Check for unlocks (a level's exit opens once its gem has been collected)
 level_unlock = False
 level_unlock1 = False
 level_unlock2 = False
 level_unlock3 = False
 
-# Init
+# Init flags: each screen builds its sprites once, then sets its flag so it doesn't rebuild every frame.
+# They're reset to False whenever that screen needs to be rebuilt.
 mainmenu_init = False
 credits_init = False
 settings_init = False
@@ -58,10 +81,10 @@ level3_init = False
 gem_init = True
 
 # Levels
-delevel = False
-state = "MainMenu"
-top_level = 0
-level_changed = False
+delevel = False        # True when the player fell down into the previous level (so don't respawn them or the gem)
+state = "MainMenu"    # Current screen/scene, overwritten by GameState.__init__
+top_level = 0         # Highest level whose gem has been collected; gates how far up the player may go
+level_changed = False # True for a moment after climbing up, while the player is still moving in from below
 
 # Animate
 animate_teleport = False
@@ -73,16 +96,18 @@ SFX_state = True
 Trees_state = False
 
 # Sound
-music_init = False
-SFX_init = False
-start_time = 0
-prev_terrain = 0
+music_init = False   # Has the music for the current screen been started?
+SFX_init = False     # Has the footstep sound for the current block been played?
+start_time = 0       # Timer value when the music last started (used to loop it)
+prev_terrain = 0     # Last block the player was standing on
 
-# Difficulty
+# Difficulty (0 = easy, 1 = hard; hard makes enemies move 1px/frame faster)
 difficulty = 0
 # ------------------------------
 
 # Terrain creation off Tilemap
+# layer = row in the tilemap (0 is the BOTTOM of the screen, the maps are stored upside-down), block = column, x_pos = pixel x of the block's centre
+# Returns a Terrain sprite, or None if the tile is air (-1)
 def check_block(layer, block, x_pos, tile_data):
 
     # Get current tile off tilemap
@@ -100,7 +125,7 @@ def music_handler():
     # Globals
     global music_init, start_time, state
     
-    # Timer to check when music needs to restart
+    # Timer to check when music needs to restart (the tracks are roughly 80 seconds long, so stop and re-init after 81)
     if timer >= start_time+81:
         game_music.stop()
         main_menu_music.stop()
@@ -136,7 +161,11 @@ def music_handler():
         main_menu_music.stop()
         game_music.stop()
 
-# Handles playing various SFX
+# Handles playing various SFX (footsteps)
+# Works out which block the player is standing on, picks the matching sound set
+# (grass / stone / snow) by comparing the block's pixels against the known textures,
+# and plays a random variation once each time the player steps onto a new block.
+# NOTE: this reloads the block images every frame, which is wasteful but works.
 def SFX_handler():
     # Globals
     global state, SFX_init, prev_terrain
@@ -166,6 +195,7 @@ def SFX_handler():
 
                 # Getting the terrain block below the player
                 if terrain.rect.x < player.rect.x+24 < terrain.rect.x+48:
+                    # (48 = block size, 24 = half the player's size, so this uses the player's centre)
                     if terrain.rect.y-48 < player.rect.y+24 < terrain.rect.y:
 
                         # Check whether the previous terrain block the player was standing on is the same, if not un-init SFX
@@ -207,6 +237,8 @@ def SFX_handler():
                             SFX_init = True
 
 # Handles game states/scenes
+# Each method below is one screen. state_manager() at the bottom of the class
+# runs whichever one matches the global `state` string, once per frame.
 class GameState():
 
 # Init
@@ -283,7 +315,7 @@ class GameState():
         # Draw our main menu background
         screen.blit(main_menu_skybox,(0,0))
 
-        # Draw fake character that animates each frame
+        # Draw fake character that animates each frame (the sprite index is a float that grows by 0.1 per frame, then truncated with int())
         right_idle = [pygame.transform.scale(pygame.image.load(f"Assets\\sprites\\player\\idle\\player-idle-{i + 1}.png"), (PLAYER_DIMENSION, PLAYER_DIMENSION)) for i in range(4)]
         image = right_idle[int(current_sprite) % len(right_idle)]
         current_sprite += 0.1
@@ -449,6 +481,7 @@ class GameState():
                     l_pressed = True
                 if event.key == pygame.K_RIGHT:
                     r_pressed = True
+                # NOTE: 'and' binds tighter than 'or', so the is_grounded check only applies to the Up key (Player.inputs also checks grounded before jumping)
                 if event.key == pygame.K_SPACE or event.key == pygame.K_UP and is_grounded == True:
                     space_pressed = True
 
@@ -473,7 +506,7 @@ class GameState():
         if not level1_init:
 
             # Init terrain
-            # Set start x position
+            # Set start x position (24 = half a block, as blocks are positioned by their centre)
             x_pos = 24
             
             # Get how many blocks length and height wise in the screen
@@ -495,10 +528,11 @@ class GameState():
                 x_pos = 24
 
             # Init enemy
+            # Enemy(x, y, patrol_distance (in blocks), patrol_speed (pixels per frame))
             enemy_group.add(Enemy(648,216,8,3))
 
             # Init UI
-            UI_group.add(UI(792,24,10)) # Exit button
+            UI_group.add(UI(792,24,10)) # Exit button (back to main menu)
 
             # Init player and gem if the player is starting the game and not just falling down from level2
             if not delevel:
@@ -568,6 +602,7 @@ class GameState():
                     l_pressed = True
                 if event.key == pygame.K_RIGHT:
                     r_pressed = True
+                # NOTE: 'and' binds tighter than 'or', so the is_grounded check only applies to the Up key (Player.inputs also checks grounded before jumping)
                 if event.key == pygame.K_SPACE or event.key == pygame.K_UP and is_grounded == True:
                     space_pressed = True
 
@@ -600,7 +635,7 @@ class GameState():
         if not level2_init:
 
             # Init terrain
-            # Set start x position
+            # Set start x position (24 = half a block, as blocks are positioned by their centre)
             x_pos = 24
 
             # Get how many blocks length and height wise in the screen
@@ -633,7 +668,7 @@ class GameState():
             enemy_group.add(Enemy(168,360,2,1))
 
             # Init UI
-            UI_group.add(UI(792,24,10)) # Exit button
+            UI_group.add(UI(792,24,10)) # Exit button (back to main menu)
 
             # Level2 has init
             level2_init = True
@@ -693,6 +728,7 @@ class GameState():
                     l_pressed = True
                 if event.key == pygame.K_RIGHT:
                     r_pressed = True
+                # NOTE: 'and' binds tighter than 'or', so the is_grounded check only applies to the Up key (Player.inputs also checks grounded before jumping)
                 if event.key == pygame.K_SPACE or event.key == pygame.K_UP and is_grounded == True:
                     space_pressed = True
 
@@ -725,7 +761,7 @@ class GameState():
         if not level3_init:
 
             # Init terrain
-            # Set start x position
+            # Set start x position (24 = half a block, as blocks are positioned by their centre)
             x_pos = 24
 
             # Get how many blocks length and height wise in the screen
@@ -759,9 +795,10 @@ class GameState():
             enemy_group.add(Enemy(792,408,0,1))
 
             # Init UI
-            UI_group.add(UI(792,24,10)) # Exit button
+            UI_group.add(UI(792,24,10)) # Exit button (back to main menu)
 
             # Init portal
+            # Portal(x, y, teleport_x, teleport_y): touching it moves the player to the teleport position
             portal_group.add(Portal(312,140,360,456))
 
             # Level3 has init
@@ -829,6 +866,8 @@ class GameState():
             self.Level3()
 
 # Terrain Class
+# One block of the level. Has a static physics body (so the player can land on it) and an image to draw.
+# terrain_type matches the tile codes in mapdata.py (0-5).
 class Terrain(pygame.sprite.Sprite):
 
 # Init
@@ -858,6 +897,7 @@ class Terrain(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=(pos_x, pos_y))
 
 # Gem Class
+# The collectable in each level. Picking it up unlocks the exit at the top of the screen.
 class Gem(pygame.sprite.Sprite):
 
 # Init
@@ -898,6 +938,7 @@ class Gem(pygame.sprite.Sprite):
                 if level == 2:
 
                     # If so get player and check whether its right side of its rect is touching the left side of the gem rect
+                    # (i.e. the player's right edge must be within 40px of the gem's left edge)
                     for player in player_group:
                         if abs(gem.rect.left-player.rect.right) < 40:
 
@@ -909,6 +950,7 @@ class Gem(pygame.sprite.Sprite):
 
                     # If so get player and check wether its left side of its rect is touching the right side of the gem rect
                     for player in player_group:
+                        # (i.e. the player's right edge must be more than 20px from the gem's left edge)
                         if abs(gem.rect.left-player.rect.right) > 20:
                                 
                                 # If so set unlock to True
@@ -952,6 +994,9 @@ class Gem(pygame.sprite.Sprite):
         self.animate()
 
 # Player Class
+# Movement is a mix of both systems: pymunk handles gravity/jumping, while left/right
+# movement is done by moving the body directly. Because pymunk can't give us platformer-style
+# collisions, the Player also does its own ground and wall checks using pygame Rects.
 class Player(pygame.sprite.Sprite):
 
 # Init
@@ -959,6 +1004,7 @@ class Player(pygame.sprite.Sprite):
         super().__init__()
 
         # Class variables
+        # l_timer / r_timer remember which direction key was pressed first, so holding both keys doesn't flicker
         self.l_timer = False
         self.r_timer = False
         self.prev = ""
@@ -987,6 +1033,7 @@ class Player(pygame.sprite.Sprite):
         self.current_sprite = 0
 
         # Creating a DYNAMIC physics body for the player and adding it to the physics space
+        # (mass 1, moment of inertia 1e100 so the box never rotates)
         self.body = pymunk.Body(1,1e+100,body_type=pymunk.Body.DYNAMIC)
         self.body.position = (pos_x, pos_y)
         self.shape = pymunk.Poly.create_box(self.body,(PLAYER_DIMENSION,PLAYER_DIMENSION))
@@ -997,6 +1044,7 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=[pos_x, pos_y])
 
 # Vertical Collision handler
+# Sets is_grounded (used for jumping) and nudges the player out of floors/ceilings they've sunk into
     def vertical_collision_handler(self, collision_tolerance):
         # Globals
         global is_grounded
@@ -1026,6 +1074,7 @@ class Player(pygame.sprite.Sprite):
                 break
 
 # Collision handler
+# Returns 0 if left movement should be blocked, 1 if right movement should be blocked, or None if both are free
     def collision_handler(self, collision_tolerance):
         # Check whether player is trying to leave scene and block inputs accordingly
         if self.rect.left <= 0:
@@ -1084,6 +1133,7 @@ class Player(pygame.sprite.Sprite):
                 self.image = self.right_jump_2
 
 # Animate
+# Picks the correct sprite for the current input/jump state, and handles the teleport and death animations
     def animate(self):
         # Globals
         global animate_teleport, animate_death, timer, l_pressed, r_pressed, state, music_init
@@ -1176,6 +1226,7 @@ class Player(pygame.sprite.Sprite):
             self.body.velocity = (self.body.velocity.x,0)  
 
 # Death logic
+# Touching any enemy starts the death animation; once it finishes (see animate()) the Death screen is shown
     def death_logic(self):
         # Globals
         global state, death_init, animate_death
@@ -1196,6 +1247,8 @@ class Player(pygame.sprite.Sprite):
                 death_init = False
 
 # Level logic
+# Handles moving between levels: leaving the top of the screen goes up a level (if unlocked),
+# leaving the bottom goes back down one. Climbing out of level 3 returns to the main menu.
     def level_logic(self):
 
         # Globals
@@ -1294,6 +1347,8 @@ class Player(pygame.sprite.Sprite):
         self.level_logic()
 
 # Enemy class
+# An opossum that patrols back and forth. It walks left for `patrol_distance` blocks,
+# then right for the same distance, then repeats. Touching it kills the player.
 class Enemy(pygame.sprite.Sprite):
 
 # Init
@@ -1337,6 +1392,7 @@ class Enemy(pygame.sprite.Sprite):
                 self.image = self.right_run[int(self.current_sprite) % len(self.right_run)]
 
 # Enemy AI
+# distance_patrolled counts blocks walked (48px each); the first half of the cycle is leftwards, the second half rightwards
     def enemy_AI(self):
 
         # Globals
@@ -1378,6 +1434,7 @@ class Enemy(pygame.sprite.Sprite):
         self.enemy_AI()
 
 # Portal Class
+# One-use teleporter used in level 3. Touching it moves the player to (teleport_x, teleport_y) and removes the portal.
 class Portal(pygame.sprite.Sprite):
 
 # Init
@@ -1424,6 +1481,8 @@ class Portal(pygame.sprite.Sprite):
         self.portal_logic()
 
 # UI Digits class
+# The three digits in the HUD: gem count (tens, ones) and current level.
+# Which digit a sprite is gets identified by its x position (398 = level, 443 = tens, 470 = ones).
 class UI_Digits(pygame.sprite.Sprite):
 
 # Init
@@ -1467,6 +1526,11 @@ class UI_Digits(pygame.sprite.Sprite):
         self.level_count()
 
 # UI Class
+# All the clickable buttons. UI_type is an index into the button images (normal-N / selected-N):
+#   0 Restart, 1 Main menu, 2 Play, 3 Settings, 4 Music toggle, 5 SFX toggle, 6 Trees toggle,
+#   7 Back, 8 Quit, 9 Credits, 10 Level exit, 12 Difficulty toggle (uses the diff-N images instead)
+# Because every button is the same class, hover() and button_logic() tell the buttons apart by the
+# y position of their rect (e.g. 168 is the Play button). If you move a button you must update those numbers too.
 class UI(pygame.sprite.Sprite):
 
 # Init
@@ -1501,7 +1565,7 @@ class UI(pygame.sprite.Sprite):
         # Get current mouse position
         mouse_pos = pygame.mouse.get_pos()
 
-        # Excluded y values
+        # Excluded y values (the toggle buttons and difficulty button, which don't play the hover sound)
         excluded_y_values = [116, 191, 266, 341]
 
         # Iterate through each button
@@ -1627,6 +1691,7 @@ class UI(pygame.sprite.Sprite):
                         self.button_hover_states[button] = False
 
 # Statechange
+# Common cleanup when a button switches screens: play the click, release inputs, and remove the old screen's sprites
     def statechange_init(self):
         # Globals
         global mouse_down, l_pressed, r_pressed
@@ -1650,6 +1715,8 @@ class UI(pygame.sprite.Sprite):
             terrain.kill()
             space.remove(terrain.body, terrain.shape)
 
+# Button logic
+# A button counts as clicked when the mouse is over it and the left button is held (mouse_down)
     def button_logic(self):
         # Globals
         global mouse_down, state, player_group, credits_init, level1_init, level2_init, level3_init, mainmenu_init, settings_init, gem_count, music_state, SFX_state, Trees_state, delevel, level, level_unlock1, level_unlock2, level_unlock3, difficulty, music_init
@@ -1790,13 +1857,14 @@ class UI(pygame.sprite.Sprite):
         self.button_logic()
 
 # Game and Physics Init
+# (space is the pymunk world; gravity is 1000 units/s^2 downwards)
 pygame.init()
 game_state = GameState()
 clock = pygame.time.Clock()
 space = pymunk.Space()
 space.gravity=(0,1000)
 
-# Screen Init
+# Screen Init (borderless window, so there is no close button; use the in-game Quit button)
 screen_flags = pygame.NOFRAME
 screen_width = BLOCK_DIMENSIONS * SCREEN_BLOCK_WIDTH
 screen_height = BLOCK_DIMENSIONS * SCREEN_BLOCK_HEIGHT
@@ -1815,7 +1883,7 @@ gem_text = pygame.transform.scale(pygame.image.load("Assets\\UI\\text\\gem_text.
 trees = pygame.image.load("Assets\\Enviroment\\Other\\trees.png")
 trees = pygame.transform.scale(trees,(528*2,110*2))
 
-# Group init
+# Group init (sprite groups used for drawing, updating and collision checks)
 player_group = pygame.sprite.GroupSingle()
 terrain_group = pygame.sprite.Group()
 gem_group = pygame.sprite.Group()
@@ -1843,9 +1911,11 @@ UI_Digit_group.add(UI_Digits(screen_width/2+72, 18))  # Ones Digit
 UI_Digit_group.add(UI_Digits(screen_width/2, 36))  # Level Count
 
 # FOR DEBUG (!DONT TOUCH!)
+# Used by the commented-out space.debug_draw() lines in the level states to show physics hitboxes
 debug_draw_options = pymunk.pygame_util.DrawOptions(screen)
 
 # Main loop: start timer, init music and SFX handlers and run game_state manager
+# Runs at 60 FPS; physics is stepped by a fixed 1/60 s each frame
 while True:
     music_handler()
     SFX_handler()
